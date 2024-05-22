@@ -1973,6 +1973,106 @@ function installOptionalSQL5(){
   return;
 }
 
+//Install Optional SQL
+// Default version.
+// This will only add the NEW SBA product attributes that are NOT display-only AND are NOT the new "SBA" selections
+function installOptionalSQL7(){
+  /*
+  INSERT INTO products_with_attributes_stock (products_id, stock_attributes, quantity)
+
+    SELECT p.products_id, pa.products_attributes_id, p.products_quantity
+    FROM products p
+      LEFT JOIN products_attributes pa ON (p.products_id = pa.products_id)
+      LEFT JOIN products_options_values pv ON (pa.options_values_id = pv.products_options_values_id)
+      LEFT JOIN products_options_values_to_products_options povpo ON (pv.products_options_values_id = povpo.products_options_values_id)
+      LEFT JOIN products_options po ON(povpo.products_options_id = po.products_options_id)
+      LEFT JOIN products_options_types pot ON (po.products_options_type = pot.products_options_types_id)
+
+    WHERE pa.products_attributes_id is not null
+      AND pa.options_values_id > 0
+      AND pa.attributes_display_only = 0
+      AND pot.products_options_types_name NOT LIKE "SBA%"
+    ORDER BY p.products_id, pa.products_attributes_id
+
+    ON DUPLICATE KEY UPDATE
+      `products_id` = products_with_attributes_stock.products_id;
+   */
+
+  global $db, $resultMmessage, $failed;
+  //use 'p.products_quantity' to get the quantity from the product table
+  //Use any value you require if you want to set all attribute variants to a specific number such as 0
+  //example: $insertQtyValue = 0;
+  $msg = '';
+//  $insertQtyValue = 'p.products_quantity';
+
+  //check if the required table is present
+  if(!checkSBAtable(TABLE_PRODUCTS_WITH_ATTRIBUTES_STOCK, null, false)) {
+    array_push($resultMmessage, 'Optional SQL file result: Did NOT run, table does not exist.');
+    $failed = true;
+    return;
+  }
+
+  $sql = "INSERT INTO ".TABLE_PRODUCTS_WITH_ATTRIBUTES_STOCK." (products_id, stock_attributes, quantity)
+
+      SELECT p.products_id, pa.products_attributes_id, 0
+
+      FROM ".TABLE_PRODUCTS." p
+        LEFT JOIN ".TABLE_PRODUCTS_ATTRIBUTES." pa ON (p.products_id = pa.products_id)
+        LEFT JOIN ".TABLE_PRODUCTS_OPTIONS_VALUES." pv ON (pa.options_values_id = pv.products_options_values_id)
+        LEFT JOIN ".TABLE_PRODUCTS_OPTIONS_VALUES_TO_PRODUCTS_OPTIONS." povpo ON (pv.products_options_values_id = povpo.products_options_values_id)
+        LEFT JOIN ".TABLE_PRODUCTS_OPTIONS." po ON(povpo.products_options_id = po.products_options_id)
+        LEFT JOIN ".TABLE_PRODUCTS_OPTIONS_TYPES." pot ON (po.products_options_type = pot.products_options_types_id)
+
+      WHERE pa.products_attributes_id is not null
+        AND pa.options_values_id > 0
+        AND pa.attributes_display_only = 0
+        AND pot.products_options_types_name NOT LIKE 'SBA%'
+        AND NOT EXISTS (SELECT pwas.products_id, pwas.stock_attributes 
+          FROM " . TABLE_PRODUCTS_WITH_ATTRIBUTES_STOCK . " pwas
+        WHERE 
+          p.products_id = pwas.products_id
+        AND CAST(pa.products_attributes_id AS char(255)) = pwas.stock_attributes)
+      ORDER BY p.products_id, pa.products_attributes_id
+
+      ON DUPLICATE KEY UPDATE
+        `products_id` = ".TABLE_PRODUCTS_WITH_ATTRIBUTES_STOCK.".products_id;";
+
+/*
+SELECT p.products_id, pa.products_attributes_id
+      FROM v158_products p
+        LEFT JOIN v158_products_attributes  pa ON (p.products_id = pa.products_id)
+        LEFT JOIN v158_products_options_values pv ON (pa.options_values_id = pv.products_options_values_id)
+        LEFT JOIN v158_products_options_values_to_products_options povpo ON (pv.products_options_values_id = povpo.products_options_values_id)
+        LEFT JOIN v158_products_options po ON(povpo.products_options_id = po.products_options_id)
+        LEFT JOIN v158_products_options_types pot ON (po.products_options_type = pot.products_options_types_id)
+
+      WHERE pa.products_attributes_id is not null
+        AND pa.options_values_id > 0
+        AND pa.attributes_display_only = 0
+        AND pot.products_options_types_name NOT LIKE 'SBA%'
+      AND not exists (select pwas.products_id, pwas.stock_attributes from 
+      v158_products_with_attributes_stock pwas WHERE p.products_id = pwas.products_id 
+        AND CAST(pa.products_attributes_id as char(255)) = pwas.stock_attributes);
+        
+
+*/
+
+
+  $db->Execute($sql);
+  if((isset($db->error_number) && $db->error_number) || (isset($db->error) && $db->error)){
+    $msg = ' Error Message: ' . $db->error_message;
+    $failed = true;
+    array_push($resultMmessage, 'Optional SQL file did not complete. ' . $msg);
+    return;
+  }
+  zen_record_admin_activity('Inserted SBA optional SQL 7 via the install file.', 'warning');
+  array_push($resultMmessage, 'Optional SQL file complete. ' . $msg);
+
+  return;
+}
+
+
+
 //test to see if database table already exists
 function checkSBAtable($table = null, $field = null, $display = true) {
 
@@ -2723,6 +2823,7 @@ echo '<div id="" style="background-color: green; padding: 2px 10px;"></div>
         <option value="runOptionalSQL4" title="Only add the product attributes that are NOT display-only">Add product attributes that are NOT display-only</option>
         <option value="runOptionalSQL5" title="Remove the product attributes that are ONLY read-only">Remove product attributes that are ONLY read-only</option>
         <option value="runOptionalSQL6" title="Ensure availability and operation of PRODUCTS_OPTIONS_TYPE_SELECT, UPLOAD_PREFIX, and TEXT_PREFIX or if dropdowns do not appear">Restore visibility of Dropdowns</option>
+        <option value="runOptionalSQL7" title="Add ALL new single attribute NOT display only product to SBA table">Add ALL new product attributes that are NOT display only</option>
         <option value="updatePASfieldPAC" title="Update Unique Combo field">Update Unique Combo field</option>
         <option value="truncatePAStable" title="WARNING: This will COMPLETLY EMPTY the Product with Attribute Stock Table!">Remove ALL entries from the PAS Table</option>
       </optgroup>
@@ -2838,6 +2939,11 @@ echo '<div id="" style="background-color: green; padding: 2px 10px;"></div>
     verifyProductOptionsTypes();
       $script_result = 'Optional SQL 6';
       break;
+    case 'runOptionalSQL7':
+      installOptionalSQL7();
+      $script_result = 'Optional SQL 7';
+      break;
+    
     case 'runOptionalAllToSBA':
 
     convertDropdownsToSBA();
