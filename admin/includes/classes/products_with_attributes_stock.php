@@ -460,7 +460,7 @@ class products_with_attributes_stock extends queryFactory
             $html .= $products->fields['products_name'] . "\n";
             $html .= '    </td>';
             
-            if (STOCK_SHOW_IMAGE == 'true') {$html .= '<td class="tdProdImage">' . zen_info_image(zen_output_string($products->fields['products_image']), zen_output_string($products->fields['products_name']), "60", "60") . '</td>';}
+            if (STOCK_SHOW_IMAGE == 'true') {$html .= '<td class="tdProdImage">' . zen_info_image(zen_output_string($products->fields['products_image']), zen_output_string($products->fields['products_name']), "60", "60", 'style="object-fit: contain;"') . '</td>';}
             
             // @TODO: Determine the current page applicable to this pID
             //product.php? page=1 & product_type=1 & cPath=13 & pID=1042 & action=new_product
